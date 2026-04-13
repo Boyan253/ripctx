@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 
 const SUPPORTED_EXTENSIONS = new Set([
   ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs",
@@ -11,6 +11,7 @@ const IGNORE_DIRS = new Set([
   "node_modules", ".git", "dist", "build", "__pycache__",
   ".next", ".nuxt", "coverage", ".venv", "venv", "env",
   ".tox", ".mypy_cache", ".pytest_cache", ".ruff_cache",
+  ".turbo", ".cache", ".parcel-cache", "out",
 ]);
 
 export function findProjectRoot(startDir: string): string {
@@ -31,9 +32,37 @@ export function findProjectRoot(startDir: string): string {
 }
 
 export function discoverFiles(root: string): string[] {
+  // Prefer git ls-files for .gitignore awareness and speed
+  const gitFiles = tryGitLsFiles(root);
+  if (gitFiles) return gitFiles;
+
+  // Fallback: manual walk
   const files: string[] = [];
   walk(root, files);
   return files;
+}
+
+function tryGitLsFiles(root: string): string[] | null {
+  try {
+    const output = execFileSync("git", ["ls-files", "-co", "--exclude-standard"], {
+      cwd: root,
+      encoding: "utf-8",
+      timeout: 10000,
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    const files: string[] = [];
+    for (const line of output.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const ext = path.extname(trimmed);
+      if (SUPPORTED_EXTENSIONS.has(ext)) {
+        files.push(path.resolve(root, trimmed));
+      }
+    }
+    return files.length > 0 ? files : null;
+  } catch {
+    return null;
+  }
 }
 
 function walk(dir: string, files: string[]): void {
@@ -60,24 +89,40 @@ function walk(dir: string, files: string[]): void {
 }
 
 export function getModifiedFiles(root: string): Set<string> {
+  // Use execFileSync (no shell) for cross-platform compatibility
   try {
-    const output = execSync("git diff --name-only HEAD 2>/dev/null || git diff --name-only 2>/dev/null || echo \"\"", {
+    const output = execFileSync("git", ["diff", "--name-only", "HEAD"], {
       cwd: root,
       encoding: "utf-8",
       timeout: 5000,
-      stdio: ["pipe", "pipe", "pipe"],
+      stdio: ["ignore", "pipe", "ignore"],
     });
-    const modified = new Set<string>();
-    for (const line of output.split("\n")) {
-      const trimmed = line.trim();
-      if (trimmed) {
-        modified.add(path.resolve(root, trimmed));
-      }
-    }
-    return modified;
+    return parseGitOutput(output, root);
   } catch {
-    return new Set();
+    // Fall back to unstaged diff
+    try {
+      const output = execFileSync("git", ["diff", "--name-only"], {
+        cwd: root,
+        encoding: "utf-8",
+        timeout: 5000,
+        stdio: ["ignore", "pipe", "ignore"],
+      });
+      return parseGitOutput(output, root);
+    } catch {
+      return new Set();
+    }
   }
+}
+
+function parseGitOutput(output: string, root: string): Set<string> {
+  const modified = new Set<string>();
+  for (const line of output.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed) {
+      modified.add(path.resolve(root, trimmed));
+    }
+  }
+  return modified;
 }
 
 export function getLanguage(filePath: string): "typescript" | "python" | null {

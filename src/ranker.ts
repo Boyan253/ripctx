@@ -1,4 +1,4 @@
-import * as path from "path";
+import { estimateTokens } from "./tokens";
 
 export interface Snippet {
   filePath: string;
@@ -21,8 +21,6 @@ export interface RankedResult {
   budget: number;
 }
 
-import { estimateTokens } from "./tokens";
-
 const SCORES = {
   TARGET: 100,
   REFERENCED_SYMBOL: 60,
@@ -39,6 +37,27 @@ export function rankAndPack(
   modifiedFiles: Set<string>,
   budget: number
 ): RankedResult {
+  // Enforce budget on target
+  const targetTokens = estimateTokens(target.content);
+  target.tokens = targetTokens;
+
+  if (targetTokens > budget) {
+    // Truncate target to fit budget
+    const maxChars = Math.floor(budget * 3.5);
+    const lines = target.content.split("\n");
+    let result = "";
+    for (const line of lines) {
+      if (result.length + line.length + 1 > maxChars - 50) {
+        result += "\n// ... TARGET_TRUNCATED (use --symbol or increase --budget) ...";
+        break;
+      }
+      result += (result ? "\n" : "") + line;
+    }
+    target.content = result;
+    target.tokens = estimateTokens(result);
+    target.reason += " [truncated to fit budget]";
+  }
+
   // Apply modified bonus
   for (const c of candidates) {
     if (modifiedFiles.has(c.filePath)) {
@@ -47,7 +66,7 @@ export function rankAndPack(
     }
   }
 
-  // Apply size penalty: prefer smaller files
+  // Apply size penalty: prefer smaller snippets
   for (const c of candidates) {
     const sizePenalty = Math.min(15, Math.floor(c.tokens / 500));
     c.score -= sizePenalty;
@@ -68,10 +87,7 @@ export function rankAndPack(
   }
 
   // Greedy packing
-  const targetTokens = estimateTokens(target.content);
-  target.tokens = targetTokens;
-  let remaining = budget - targetTokens;
-
+  let remaining = budget - target.tokens;
   const included: Snippet[] = [];
   const omitted: Snippet[] = [];
 
@@ -80,25 +96,25 @@ export function rankAndPack(
     if (c.tokens <= remaining) {
       included.push(c);
       remaining -= c.tokens;
-    } else {
+    } else if (remaining > 200) {
       // Try truncating to fit
-      if (c.tokens > 0 && remaining > 200) {
-        const truncatedContent = truncateSnippet(c.content, remaining);
-        const truncTokens = estimateTokens(truncatedContent);
-        if (truncTokens <= remaining && truncTokens > 100) {
-          c.content = truncatedContent;
-          c.tokens = truncTokens;
-          c.reason += " [truncated to fit budget]";
-          included.push(c);
-          remaining -= truncTokens;
-          continue;
-        }
+      const truncatedContent = truncateSnippet(c.content, remaining);
+      const truncTokens = estimateTokens(truncatedContent);
+      if (truncTokens <= remaining && truncTokens > 100) {
+        c.content = truncatedContent;
+        c.tokens = truncTokens;
+        c.reason += " [truncated to fit budget]";
+        included.push(c);
+        remaining -= truncTokens;
+      } else {
+        omitted.push(c);
       }
+    } else {
       omitted.push(c);
     }
   }
 
-  const totalTokens = targetTokens + included.reduce((sum, s) => sum + s.tokens, 0);
+  const totalTokens = target.tokens + included.reduce((sum, s) => sum + s.tokens, 0);
 
   return { included, omitted, target, totalTokens, budget };
 }

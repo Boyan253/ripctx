@@ -5,7 +5,14 @@ import { analyze } from "./analyzer";
 import { formatMarkdown, formatJson } from "./formatter";
 
 async function main() {
-  const args = parseArgs(process.argv.slice(2));
+  let args;
+  try {
+    args = parseArgs(process.argv.slice(2));
+  } catch (err: any) {
+    console.error(`Error: ${err.message}`);
+    console.error('Run "ripctx --help" for usage.');
+    process.exit(1);
+  }
 
   if (args.help) {
     console.log(`ripctx — Build the smallest safe context bundle for an AI code edit
@@ -40,7 +47,8 @@ Examples:
   }
 
   if (!args.target && !args.symbol) {
-    console.error("Error: provide a file path or --symbol <name>");
+    console.error('Error: provide a file path or --symbol <name>');
+    console.error('Run "ripctx --help" for usage.');
     process.exit(1);
   }
 
