@@ -43,7 +43,9 @@ export function rankAndPack(
 
   if (targetTokens > budget) {
     // Truncate target to fit exactly within budget
-    const banner = "\n// ... TARGET_TRUNCATED (use --symbol or increase --budget) ...";
+    const isPython = target.filePath.endsWith(".py") || target.filePath.endsWith(".pyi");
+    const commentPrefix = isPython ? "#" : "//";
+    const banner = `\n${commentPrefix} ... TARGET_TRUNCATED (use --symbol or increase --budget) ...`;
     const bannerTokens = estimateTokens(banner);
     const availableTokens = Math.max(1, budget - bannerTokens);
     const maxChars = Math.floor(availableTokens * 3.5);

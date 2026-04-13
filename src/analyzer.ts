@@ -184,7 +184,7 @@ function buildCandidates(
       symbolName: null, kind: "test",
       startLine: 1, endLine: content.split("\n").length,
       content: trimFile(content, 100, lang), score: SCORES.TEST_FILE,
-      reason: "Test file for target", tokens: 0,
+      reason: "Test file for target", tokens: estimateTokens(trimFile(content, 100, lang)),
     });
   }
 
@@ -248,7 +248,7 @@ function buildTSCandidates(
           symbolName: null, kind: "file",
           startLine: 1, endLine: content.split("\n").length,
           content: trimToExports(content), score: SCORES.DIRECT_IMPORT,
-          reason: `Imported by target (${imp.source})`, tokens: 0,
+          reason: `Imported by target (${imp.source})`, tokens: estimateTokens(trimToExports(content)),
         });
       }
     }
@@ -263,6 +263,12 @@ function buildTSCandidates(
 
     for (const imp of fileParsed.imports) {
       if (imp.resolved !== targetFile) continue;
+
+      // In symbol mode, only include if the importer actually imports THIS symbol
+      if (targetSymbol) {
+        const importedOriginals = imp.originalNames || imp.symbols;
+        if (!importedOriginals.includes(targetSymbol)) continue;
+      }
 
       const relevantSymbols = targetSymbol
         ? fileParsed.symbols.filter(s => s.body.includes(targetSymbol))
@@ -287,7 +293,8 @@ function buildTSCandidates(
             symbolName: null, kind: "file",
             startLine: 1, endLine: content.split("\n").length,
             content: trimToExports(content), score: SCORES.DIRECT_IMPORTER,
-            reason: "Imports target", tokens: 0,
+            reason: "Imports target",
+            tokens: estimateTokens(trimToExports(content)),
           });
         }
       }
@@ -337,7 +344,7 @@ function buildPyCandidates(
           symbolName: null, kind: "file",
           startLine: 1, endLine: content.split("\n").length,
           content: trimFile(content, 50, "python"), score: SCORES.DIRECT_IMPORT,
-          reason: `Imported by target (${imp.source})`, tokens: 0,
+          reason: `Imported by target (${imp.source})`, tokens: estimateTokens(trimFile(content, 50, "python")),
         });
       }
     }
@@ -448,9 +455,13 @@ function findBarrelFile(filePath: string, allFileSet: Set<string>): string | nul
 
   for (const candidate of barrelCandidates) {
     if (candidate !== filePath && allFileSet.has(candidate)) {
-      // Verify it actually re-exports from the target
+      // Verify it actually re-exports from the target file
       const content = safeReadFile(candidate);
-      if (content && (content.includes(baseName) || content.includes("*"))) {
+      if (!content) continue;
+      // Must have an export statement that references the target basename
+      const hasReExport = content.match(/export\s+.*from\s+["'].*/) !== null;
+      const refersToTarget = content.includes(`./${baseName}`) || content.includes(`"./${baseName}"`) || content.includes(`'./${baseName}'`);
+      if (hasReExport && refersToTarget) {
         return candidate;
       }
     }
