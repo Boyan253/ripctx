@@ -1,0 +1,30 @@
+{
+  "name": "ripctx",
+  "version": "0.1.0",
+  "description": "Build the smallest safe context bundle for an AI code edit",
+  "main": "dist/index.js",
+  "bin": {
+    "ripctx": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc && node dist/index.js",
+    "test": "tsc && node dist/test.js"
+  },
+  "keywords": [
+    "ai",
+    "context",
+    "code-analysis",
+    "llm",
+    "developer-tools",
+    "cli"
+  ],
+  "author": "Boyan253",
+  "license": "MIT",
+  "dependencies": {
+    "typescript": "^5.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0"
+  }
+}
