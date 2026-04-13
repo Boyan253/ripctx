@@ -4,7 +4,8 @@ import * as path from "path";
 export interface PyImportInfo {
   source: string;
   resolved: string | null;
-  symbols: string[];
+  symbols: string[];        // local aliases
+  originalNames: string[];  // original exported names
   line: number;
 }
 
@@ -56,13 +57,17 @@ function parsePyImports(content: string, dir: string, allFileSet: Set<string>): 
     const source = match[1];
     const importedStr = match[2].replace(/\([\s\S]*?\)/, (m) => m.replace(/\n/g, ""));
     const symbols: string[] = [];
+    const originalNames: string[] = [];
     for (const s of importedStr.split(",")) {
-      const name = s.trim().split(/\s+as\s+/).pop()?.trim();
-      if (name && !name.startsWith("#")) symbols.push(name);
+      const parts = s.trim().split(/\s+as\s+/);
+      const original = parts[0]?.trim();
+      const alias = parts.length > 1 ? parts[1]?.trim() : original;
+      if (alias && !alias.startsWith("#")) symbols.push(alias);
+      if (original && !original.startsWith("#")) originalNames.push(original);
     }
     const line = content.substring(0, match.index).split("\n").length;
     const resolved = resolvePyImport(source, dir, allFileSet);
-    imports.push({ source, resolved, symbols, line });
+    imports.push({ source, resolved, symbols, originalNames, line });
   }
 
   // import X, import X.Y
@@ -73,7 +78,7 @@ function parsePyImports(content: string, dir: string, allFileSet: Set<string>): 
       const alias = part.trim().split(/\s+as\s+/).pop()?.trim() || modulePath;
       const line = content.substring(0, match.index).split("\n").length;
       const resolved = resolvePyImport(modulePath, dir, allFileSet);
-      imports.push({ source: modulePath, resolved, symbols: [alias], line });
+      imports.push({ source: modulePath, resolved, symbols: [alias], originalNames: [modulePath], line });
     }
   }
 

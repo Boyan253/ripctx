@@ -48,8 +48,9 @@ export function parseArgs(argv: string[]): CliArgs {
       args.file = val;
     } else if (arg === "--budget" || arg === "-b") {
       const raw = argv[++i];
+      if (!raw || !/^\d+$/.test(raw)) throw new Error(`--budget requires a positive integer, got "${raw}"`);
       const val = parseInt(raw, 10);
-      if (isNaN(val) || val <= 0) throw new Error(`--budget requires a positive number, got "${raw}"`);
+      if (val <= 0) throw new Error(`--budget requires a positive integer, got "${raw}"`);
       args.budget = val;
     } else if (arg === "--format") {
       const val = argv[++i];

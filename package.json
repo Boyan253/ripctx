@@ -9,7 +9,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc && node dist/index.js",
-    "test": "tsc && node dist/test.js"
+    "test": "tsc && node --test dist/test.js"
   },
   "keywords": [
     "ai",

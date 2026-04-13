@@ -42,19 +42,27 @@ export function rankAndPack(
   target.tokens = targetTokens;
 
   if (targetTokens > budget) {
-    // Truncate target to fit budget
-    const maxChars = Math.floor(budget * 3.5);
+    // Truncate target to fit exactly within budget
+    const banner = "\n// ... TARGET_TRUNCATED (use --symbol or increase --budget) ...";
+    const bannerTokens = estimateTokens(banner);
+    const availableTokens = Math.max(1, budget - bannerTokens);
+    const maxChars = Math.floor(availableTokens * 3.5);
     const lines = target.content.split("\n");
     let result = "";
     for (const line of lines) {
-      if (result.length + line.length + 1 > maxChars - 50) {
-        result += "\n// ... TARGET_TRUNCATED (use --symbol or increase --budget) ...";
+      if (result.length + line.length + 1 > maxChars) {
         break;
       }
       result += (result ? "\n" : "") + line;
     }
+    result += banner;
     target.content = result;
     target.tokens = estimateTokens(result);
+    // Ensure we never exceed budget
+    if (target.tokens > budget) {
+      target.content = banner.trim();
+      target.tokens = bannerTokens;
+    }
     target.reason += " [truncated to fit budget]";
   }
 

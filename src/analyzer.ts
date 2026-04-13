@@ -220,8 +220,12 @@ function buildTSCandidates(
     if (!depParsed) continue;
 
     let foundSpecificSymbol = false;
-    for (const symName of imp.symbols) {
-      const sym = depParsed.symbols.find(s => s.name === symName);
+    // Use originalNames (pre-alias) for lookup in the dependency file
+    const lookupNames = imp.originalNames || imp.symbols;
+    for (let idx = 0; idx < lookupNames.length; idx++) {
+      const originalName = lookupNames[idx];
+      const localName = imp.symbols[idx] || originalName;
+      const sym = depParsed.symbols.find(s => s.name === originalName);
       if (sym) {
         foundSpecificSymbol = true;
         candidates.push({
@@ -229,7 +233,7 @@ function buildTSCandidates(
           symbolName: sym.name, kind: sym.kind,
           startLine: sym.startLine, endLine: sym.endLine,
           content: sym.body, score: SCORES.REFERENCED_SYMBOL,
-          reason: `Referenced by target (imported as ${symName})`,
+          reason: `Referenced by target (imported as ${localName})`,
           tokens: estimateTokens(sym.body),
         });
       }
@@ -306,8 +310,11 @@ function buildPyCandidates(
     if (!depParsed) continue;
 
     let foundSpecificSymbol = false;
-    for (const symName of imp.symbols) {
-      const sym = depParsed.symbols.find(s => s.name === symName);
+    const pyLookupNames = imp.originalNames || imp.symbols;
+    for (let idx = 0; idx < pyLookupNames.length; idx++) {
+      const originalName = pyLookupNames[idx];
+      const localName = imp.symbols[idx] || originalName;
+      const sym = depParsed.symbols.find(s => s.name === originalName);
       if (sym) {
         foundSpecificSymbol = true;
         candidates.push({
@@ -315,7 +322,7 @@ function buildPyCandidates(
           symbolName: sym.name, kind: sym.kind,
           startLine: sym.startLine, endLine: sym.endLine,
           content: sym.body, score: SCORES.REFERENCED_SYMBOL,
-          reason: `Referenced by target (imported as ${symName})`,
+          reason: `Referenced by target (imported as ${localName})`,
           tokens: estimateTokens(sym.body),
         });
       }
@@ -430,16 +437,22 @@ function findRelatedTests(filePath: string, allFiles: string[]): string[] {
 
 function findBarrelFile(filePath: string, allFileSet: Set<string>): string | null {
   const dir = path.dirname(filePath);
+  const baseName = path.basename(filePath).replace(/\.[^.]+$/, "");
   const barrelCandidates = [
     path.join(dir, "index.ts"),
     path.join(dir, "index.tsx"),
     path.join(dir, "index.js"),
+    path.join(dir, "index.mjs"),
     path.join(dir, "__init__.py"),
   ];
 
   for (const candidate of barrelCandidates) {
     if (candidate !== filePath && allFileSet.has(candidate)) {
-      return candidate;
+      // Verify it actually re-exports from the target
+      const content = safeReadFile(candidate);
+      if (content && (content.includes(baseName) || content.includes("*"))) {
+        return candidate;
+      }
     }
   }
   return null;

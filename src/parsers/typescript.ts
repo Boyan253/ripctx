@@ -4,7 +4,8 @@ import * as path from "path";
 export interface ImportInfo {
   source: string;
   resolved: string | null;
-  symbols: string[];
+  symbols: string[];       // local names (aliases)
+  originalNames: string[]; // original exported names (for lookup in dependency)
   isDefault: boolean;
   isNamespace: boolean;
   line: number;
@@ -69,34 +70,41 @@ function parseImports(content: string, dir: string, allFileSet: Set<string>): Im
     const defaultImport = match[4];      // import X from
     const source = match[5];
 
-    const symbols: string[] = [];
+    const symbols: string[] = [];       // local aliases
+    const originalNames: string[] = [];  // original exported names
     let isDefault = false;
     let isNamespace = false;
 
     if (defaultWithNamed) {
       symbols.push(defaultWithNamed);
+      originalNames.push(defaultWithNamed); // default import
       isDefault = true;
     }
     if (namedImports) {
       for (const s of namedImports.split(",")) {
-        const name = s.trim().split(/\s+as\s+/).pop()?.trim();
-        if (name) symbols.push(name);
+        const parts = s.trim().split(/\s+as\s+/);
+        const original = parts[0]?.trim();
+        const alias = parts.length > 1 ? parts[1]?.trim() : original;
+        if (alias) symbols.push(alias);
+        if (original) originalNames.push(original);
       }
     }
     if (namespaceImport) {
       const nsName = namespaceImport.replace(/\*\s+as\s+/, "").trim();
       symbols.push(nsName);
+      originalNames.push(nsName);
       isNamespace = true;
     }
     if (defaultImport) {
       symbols.push(defaultImport);
+      originalNames.push(defaultImport);
       isDefault = true;
     }
 
     const lineNum = content.substring(0, match.index).split("\n").length;
     const resolved = resolveImport(source, dir, allFileSet);
 
-    imports.push({ source, resolved, symbols, isDefault, isNamespace, line: lineNum });
+    imports.push({ source, resolved, symbols, originalNames, isDefault, isNamespace, line: lineNum });
   }
 
   // require("source")
@@ -115,7 +123,7 @@ function parseImports(content: string, dir: string, allFileSet: Set<string>): Im
     }
     const lineNum = content.substring(0, match.index).split("\n").length;
     const resolved = resolveImport(source, dir, allFileSet);
-    imports.push({ source, resolved, symbols, isDefault: !!defaultName, isNamespace: false, line: lineNum });
+    imports.push({ source, resolved, symbols, originalNames: [...symbols], isDefault: !!defaultName, isNamespace: false, line: lineNum });
   }
 
   return imports;
@@ -138,6 +146,7 @@ function resolveImport(source: string, fromDir: string, allFileSet: Set<string>)
     path.join(base, "index.js"),
     path.join(base, "index.jsx"),
     path.join(base, "index.cjs"),
+    path.join(base, "index.mjs"),
   ];
 
   for (const candidate of candidates) {
