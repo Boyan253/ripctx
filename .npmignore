@@ -1,0 +1,6 @@
+src/
+demo.cast
+demo.svg
+tsconfig.json
+.gitignore
+node_modules/

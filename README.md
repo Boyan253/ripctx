@@ -2,7 +2,13 @@
 
 **Build the smallest safe context bundle for an AI code edit, ready to paste into ChatGPT or Claude.**
 
+<p align="center">
+  <img src="demo.svg" alt="ripctx demo" width="800">
+</p>
+
 ripctx analyzes your codebase and generates a token-budgeted context bundle — the minimum set of code an AI agent needs to safely modify a file or symbol. No more manually copying files. No more hallucinations from missing context.
+
+If this helps you, a star would mean a lot :)
 
 ## The Problem
 

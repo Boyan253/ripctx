@@ -6,10 +6,16 @@
   "bin": {
     "ripctx": "dist/index.js"
   },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
+    "prepublishOnly": "tsc",
     "dev": "tsc && node dist/index.js",
-    "test": "tsc && node --test dist/test.js"
+    "test": "tsc && node dist/test.js"
   },
   "keywords": [
     "ai",
@@ -17,10 +23,26 @@
     "code-analysis",
     "llm",
     "developer-tools",
-    "cli"
+    "cli",
+    "chatgpt",
+    "claude",
+    "copilot",
+    "token-budget",
+    "code-context"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Boyan253/ripctx.git"
+  },
+  "homepage": "https://github.com/Boyan253/ripctx",
+  "bugs": {
+    "url": "https://github.com/Boyan253/ripctx/issues"
+  },
   "author": "Boyan253",
   "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "typescript": "^5.8.0"
   },
